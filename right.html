@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Right Panel - Leaflet</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+  <style>
+    html, body, #map { height: 100%; margin: 0; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+
+  <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet-velocity/dist/leaflet-velocity.min.js"></script>
+
+  <script>
+    const map = L.map("map").setView([24.1, 120.6], 10);
+
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Tiles © Esri'
+    }).addTo(map);
+
+    let currentVelocityLayer;
+    let geojsonLayer;
+
+    // 載入縣市 GeoJSON，預設高亮臺中市
+    fetch('taiwan_county.geojson')
+      .then(res => res.json())
+      .then(data => {
+        geojsonLayer = L.geoJSON(data, {
+          style: feature => {
+            const isTaichung = feature.properties.COUNTYNAME === "臺中市";
+            return {
+              color: "white",
+              fillColor: "white",
+              weight: 1,
+              fillOpacity: isTaichung ? 0.01 : 0.4
+            };
+          }
+        }).addTo(map);
+
+        // Zoom 到臺中市
+        geojsonLayer.eachLayer(layer => {
+          if (layer.feature.properties.COUNTYNAME === "臺中市") {
+            map.fitBounds(layer.getBounds());
+          }
+        });
+      });
+
+    function updateWind(season, time) {
+      const url = `wind_${season}_${time}_native.json`;
+      fetch(url)
+        .then(res => res.json())
+        .then(data => {
+          if (currentVelocityLayer) {
+            map.removeLayer(currentVelocityLayer);
+          }
+          currentVelocityLayer = L.velocityLayer({
+            displayValues: true,
+            displayOptions: { velocityType: "風速", position: "bottomleft", emptyString: "無風速資料" },
+            data: data,
+            maxVelocity: 10,
+            velocityScale: 0.01,
+            particleAge: 60,
+            lineWidth: 1.5
+          });
+          currentVelocityLayer.addTo(map);
+        });
+    }
+
+    function highlightCounty(countyName) {
+      if (!geojsonLayer) return;
+
+      geojsonLayer.eachLayer(layer => {
+        const isSelected = layer.feature.properties.COUNTYNAME === countyName;
+        layer.setStyle({
+          fillOpacity: isSelected ? 0.01 : 0.4
+        });
+        if (isSelected) {
+          map.fitBounds(layer.getBounds());
+        }
+      });
+    }
+
+    // 接收左側訊息：縣市 + 季節 + 時段
+    window.addEventListener("message", (event) => {
+      const { county, season, time } = event.data;
+      if (county) highlightCounty(county);
+      if (season && time) updateWind(season, time);
+    });
+
+    // 預設載入
+    updateWind("DJF", "avg");
+  </script>
+</body>
+</html>
