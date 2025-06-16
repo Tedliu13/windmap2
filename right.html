@@ -30,16 +30,25 @@
       .then(res => res.json())
       .then(data => {
         geojsonLayer = L.geoJSON(data, {
-          style: feature => {
-            const isTaichung = feature.properties.COUNTYNAME === "臺中市";
-            return {
-              color: "white",
-              fillColor: "white",
-              weight: 1,
-              fillOpacity: isTaichung ? 0.01 : 0.4
-            };
-          }
-        }).addTo(map);
+        style: feature => {
+          const isTaichung = feature.properties.COUNTYNAME === "臺中市";
+          return {
+            color: "white",
+            fillColor: "white",
+            weight: 1,
+            fillOpacity: isTaichung ? 0.01 : 0.4
+          };
+        },
+        onEachFeature: function (feature, layer) {
+          layer.on({
+            click: function () {
+              map.fitBounds(layer.getBounds());
+              highlightCounty(feature.properties.COUNTYNAME);
+            }
+          });
+        }
+      }).addTo(map);
+
 
         // Zoom 到臺中市
         geojsonLayer.eachLayer(layer => {
